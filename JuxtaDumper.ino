@@ -1,6 +1,15 @@
 #include <SPI.h>
 #include <SD.h>
 
+#define JUXTA_LOG_SIZE              17 // bytes (with header)
+#define GAP_DEVICE_NAME_LEN         21 // bytes
+//#define JUXTA_LOG_OFFSET_HEADER     0 // 2 bytes
+// these are modified because the header is detected/removed
+#define JUXTA_LOG_OFFSET_LOGCOUNT   0 // 4 bytes
+#define JUXTA_LOG_OFFSET_SCANADDR   4 // 6 bytes
+#define JUXTA_LOG_OFFSET_RSSI       10 // 1 bytes
+#define JUXTA_LOG_OFFSET_TIME       11 // 4 bytes
+
 const int JUXTA_RESET = 6;
 const int JUXTA_DEBUG = 5;
 
@@ -15,12 +24,18 @@ bool doJuxta = false;
 bool fadeDir = true;
 bool sdIn = false;
 
-
-#define JUXTA_LOG_SIZE 17 // bytes
-#define GAP_DEVICE_NAME_LEN 21 // bytes
 //uint8_t nvsDataBuffer[JUXTA_LOG_SIZE];
 const uint8_t flushByte = 0x99;
 const uint8_t headerByte = 0xA2;
+
+uint8_t macAddress[GAP_DEVICE_NAME_LEN];
+uint8_t macCount = 0;
+
+String dataString;
+uint32_t logCount = 0;
+uint8_t addr[6];
+uint32_t localTime = 0;
+uint8_t rssi = 0;
 
 void setup() {
   // put your setup code here, to run once:
@@ -91,23 +106,9 @@ void readJuxta() {
     int headerCount = 0;
     int dataPos = 0;
 
-    uint32_t logCount = 0;
-    uint32_t localTime = 0;
-    uint8_t rssi = 0;
-    uint64_t addr = 0;
-    uint8_t macAddress[GAP_DEVICE_NAME_LEN];
-    uint8_t macCount = 0;
-
-    int dataCount = 0;
-
     while (doLoop) {
-      String dataString;
       if (Serial1.available()) {
         uint8_t data = Serial1.read();
-        //        Serial.print(dataCount);
-        //        Serial.print('-');
-        //        Serial.println(data);
-        //        dataCount++;
         if (isFlushing) {
           if (data != flushByte) {
             isFlushing = false; // gets set once per dump
@@ -126,9 +127,6 @@ void readJuxta() {
         if (!isFlushing && !isGettingAddr) {
           if (isGettingHeader) {
             if (data == headerByte) {
-              Serial.print(headerCount);
-              Serial.print(':');
-              Serial.println(data);
               headerCount++;
             }
             if (headerCount == 2) {
@@ -136,56 +134,60 @@ void readJuxta() {
             }
           } else { // header done, start building data
             Serial.print(dataPos);
-            Serial.print('-');
-            Serial.println(data);
+            Serial.print("-");
+            Serial.println(data, HEX);
 
             switch (dataPos) {
               case 0:
-                memcpy(&logCount + 3, &data, sizeof(uint8_t));
-                break;
               case 1:
-                memcpy(&logCount + 2, &data, sizeof(uint8_t));
-                break;
               case 2:
-                memcpy(&logCount + 1, &data, sizeof(uint8_t));
-                break;
               case 3:
-                memcpy(&logCount, &data, sizeof(uint8_t));
-                dataString += String(logCount);
-                dataString += ",";
+                memcpy(&logCount + dataPos - JUXTA_LOG_OFFSET_LOGCOUNT, &data, sizeof(data));
+                dataPos++;
                 break;
               case 4:
-                break;
               case 5:
-                break;
               case 6:
-                break;
               case 7:
-                break;
               case 8:
-                break;
               case 9:
+                addr[dataPos - JUXTA_LOG_OFFSET_SCANADDR] = data;
+                Serial.print(dataPos - JUXTA_LOG_OFFSET_SCANADDR, DEC);
+                Serial.print("::");
+                Serial.println(addr[dataPos - JUXTA_LOG_OFFSET_SCANADDR], HEX);
+                dataPos++;
                 break;
               case 10:
+                rssi = data;
+                dataPos++;
                 break;
               case 11:
-                break;
               case 12:
-                break;
               case 13:
-                break;
               case 14:
-                isGettingHeader = true;
-                dataPos = 0;
-                headerCount = 0;
+                memcpy(&localTime + dataPos - JUXTA_LOG_OFFSET_TIME, &data, sizeof(data));
+                if (dataPos == 14) { // done with log
+                  dataFile.print(logCount, DEC);
+                  dataFile.print(",0x");
+                  for (int k = 0; k < 6; k++) {
+                    dataFile.print(addr[5 - k], HEX);
+                    Serial.println(addr[5 - k], HEX);
+                  }
+                  dataFile.print(",");
+                  dataFile.print(rssi, DEC);
+                  dataFile.print(",");
+                  dataFile.println(localTime, DEC);
+
+                  isGettingHeader = true;
+                  dataPos = 0;
+                  headerCount = 0;
+                } else {
+                  dataPos++;
+                }
                 break;
             }
-            dataPos++;
           }
         }
-
-
-
         digitalWrite(FEATHER_LED_G, !digitalRead(FEATHER_LED_G)); // toggle
         lastSerialTime = millis();
       }
