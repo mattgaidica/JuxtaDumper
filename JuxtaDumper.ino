@@ -133,9 +133,9 @@ void readJuxta() {
               isGettingHeader = false;
             }
           } else { // header done, start building data
-            Serial.print(dataPos);
-            Serial.print("-");
-            Serial.println(data, HEX);
+//            Serial.print(dataPos);
+//            Serial.print("-");
+//            Serial.println(data, HEX);
 
             switch (dataPos) {
               case 0:
@@ -171,7 +171,6 @@ void readJuxta() {
                   dataFile.print(",0x");
                   for (int k = 0; k < 6; k++) {
                     dataFile.print(addr[5 - k], HEX);
-                    Serial.println(addr[5 - k], HEX);
                   }
                   dataFile.print(",");
                   dataFile.print(rssi, DEC);
