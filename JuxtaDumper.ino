@@ -32,10 +32,10 @@ uint8_t macAddress[GAP_DEVICE_NAME_LEN];
 uint8_t macCount = 0;
 
 String dataString;
-uint32_t logCount = 0;
-uint8_t addr[6];
-uint32_t localTime = 0;
-uint8_t rssi = 0;
+static uint32_t logCount = 0;
+static uint8_t addr[6];
+static uint32_t localTime = 0;
+static int8_t rssi = 0;
 
 void setup() {
   // put your setup code here, to run once:
@@ -133,16 +133,16 @@ void readJuxta() {
               isGettingHeader = false;
             }
           } else { // header done, start building data
-//            Serial.print(dataPos);
-//            Serial.print("-");
-//            Serial.println(data, HEX);
+            Serial.print(dataPos);
+            Serial.print("-");
+            Serial.println(data, HEX);
 
             switch (dataPos) {
               case 0:
               case 1:
               case 2:
               case 3:
-                memcpy(&logCount + dataPos - JUXTA_LOG_OFFSET_LOGCOUNT, &data, sizeof(data));
+                memcpy(&logCount + (dataPos - JUXTA_LOG_OFFSET_LOGCOUNT), &data, sizeof(data));
                 dataPos++;
                 break;
               case 4:
@@ -152,9 +152,6 @@ void readJuxta() {
               case 8:
               case 9:
                 addr[dataPos - JUXTA_LOG_OFFSET_SCANADDR] = data;
-                Serial.print(dataPos - JUXTA_LOG_OFFSET_SCANADDR, DEC);
-                Serial.print("::");
-                Serial.println(addr[dataPos - JUXTA_LOG_OFFSET_SCANADDR], HEX);
                 dataPos++;
                 break;
               case 10:
@@ -165,9 +162,15 @@ void readJuxta() {
               case 12:
               case 13:
               case 14:
-                memcpy(&localTime + dataPos - JUXTA_LOG_OFFSET_TIME, &data, sizeof(data));
+                Serial.print("::");
+                Serial.println(logCount, HEX);
+                Serial.print("localTime: ");
+                Serial.println(dataPos - JUXTA_LOG_OFFSET_TIME, DEC);
+                
+                memcpy(&localTime + (dataPos - JUXTA_LOG_OFFSET_TIME), &data, sizeof(data)); // conflicting with logCount
                 if (dataPos == 14) { // done with log
                   dataFile.print(logCount, DEC);
+
                   dataFile.print(",0x");
                   for (int k = 0; k < 6; k++) {
                     dataFile.print(addr[5 - k], HEX);
