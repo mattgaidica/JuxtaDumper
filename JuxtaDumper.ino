@@ -31,7 +31,7 @@ const uint8_t headerByte = 0xA2;
 uint8_t macAddress[GAP_DEVICE_NAME_LEN];
 uint8_t macCount = 0;
 
-String dataString;
+static String dataString;
 static uint32_t logCount = 0;
 static uint8_t addr[6];
 static uint32_t localTime = 0;
@@ -162,11 +162,6 @@ void readJuxta() {
               case 12:
               case 13:
               case 14:
-                Serial.print("::");
-                Serial.println(logCount, HEX);
-                Serial.print("localTime: ");
-                Serial.println(dataPos - JUXTA_LOG_OFFSET_TIME, DEC);
-                
                 memcpy(&localTime + (dataPos - JUXTA_LOG_OFFSET_TIME), &data, sizeof(data)); // conflicting with logCount
                 if (dataPos == 14) { // done with log
                   dataFile.print(logCount, DEC);
@@ -174,6 +169,8 @@ void readJuxta() {
                   dataFile.print(",0x");
                   for (int k = 0; k < 6; k++) {
                     dataFile.print(addr[5 - k], HEX);
+                    Serial.print(addr[5 - k], HEX);
+                    Serial.println("<<");
                   }
                   dataFile.print(",");
                   dataFile.print(rssi, DEC);
