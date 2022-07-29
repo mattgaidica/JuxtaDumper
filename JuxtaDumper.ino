@@ -33,8 +33,10 @@ uint8_t macCount = 0;
 
 static String dataString;
 static uint32_t logCount = 0;
+static uint8_t logCountArr[4] = {0, 0, 0, 0};
 static uint8_t addr[6];
 static uint32_t localTime = 0;
+static uint8_t localTimeArr[4] = {0, 0, 0, 0};
 static int8_t rssi = 0;
 
 void setup() {
@@ -52,7 +54,7 @@ void setup() {
   digitalWrite(FEATHER_LED_G, LOW);
 
   Serial.begin(115200);
-  Serial1.begin(115200);
+  Serial1.begin(9600);
 
   Serial.print("Initializing SD card...");
   initSD();
@@ -87,7 +89,7 @@ void readJuxta() {
   analogWrite(FEATHER_LED_R, 255);
   digitalWrite(FEATHER_LED_G, LOW); // keep LOW until incoming serial data
   Serial.println("Opening file...");
-  String filename = "JUXTA.txt"; // !! rename to BLE MAC
+  static String filename = "JUXTA.txt"; // !! rename to BLE MAC
   SD.remove(filename);
   File dataFile = SD.open(filename, FILE_WRITE);
   if (dataFile) {
@@ -97,14 +99,14 @@ void readJuxta() {
     toggleReset();
 
     // Juxta should be in serial mode now
-    unsigned long lastSerialTime = millis();
-    unsigned long curTime;
-    bool doLoop = true;
-    bool isFlushing = true;
-    bool isGettingAddr = true;
-    bool isGettingHeader = true;
-    int headerCount = 0;
-    int dataPos = 0;
+    static unsigned long lastSerialTime = millis();
+    static unsigned long curTime;
+    static bool doLoop = true;
+    static bool isFlushing = true;
+    static bool isGettingAddr = true;
+    static bool isGettingHeader = true;
+    static int headerCount = 0;
+    static int dataPos = 0;
 
     while (doLoop) {
       if (Serial1.available()) {
@@ -142,7 +144,7 @@ void readJuxta() {
               case 1:
               case 2:
               case 3:
-                memcpy(&logCount + (dataPos - JUXTA_LOG_OFFSET_LOGCOUNT), &data, sizeof(data));
+                logCountArr[(dataPos - JUXTA_LOG_OFFSET_LOGCOUNT)] = data;
                 dataPos++;
                 break;
               case 4:
@@ -162,8 +164,14 @@ void readJuxta() {
               case 12:
               case 13:
               case 14:
-                memcpy(&localTime + (dataPos - JUXTA_LOG_OFFSET_TIME), &data, sizeof(data)); // conflicting with logCount
+                localTimeArr[(dataPos - JUXTA_LOG_OFFSET_TIME)] = data;
                 if (dataPos == 14) { // done with log
+                  logCount = (uint32_t) logCountArr[0];
+                  logCount |=  (uint32_t) logCountArr[1] << 8;
+                  logCount |= (uint32_t) logCountArr[2] << 16;
+                  logCount |= (uint32_t) logCountArr[3] << 24;
+                  Serial.print("logCount: ");
+                  Serial.println(logCount);
                   dataFile.print(logCount, DEC);
 
                   dataFile.print(",0x");
@@ -175,6 +183,12 @@ void readJuxta() {
                   dataFile.print(",");
                   dataFile.print(rssi, DEC);
                   dataFile.print(",");
+                  localTime = (uint32_t) localTimeArr[0];
+                  localTime |=  (uint32_t) localTimeArr[1] << 8;
+                  localTime |= (uint32_t) localTimeArr[2] << 16;
+                  localTime |= (uint32_t) localTimeArr[3] << 24;
+                  Serial.print("localTime: ");
+                  Serial.println(localTime);
                   dataFile.println(localTime, DEC);
 
                   isGettingHeader = true;
